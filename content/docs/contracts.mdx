@@ -1,0 +1,120 @@
+---
+title: Smart Contracts
+description: Deployed contract addresses and key functions on Arbitrum One
+---
+
+# Smart Contracts
+
+All contracts are deployed on Arbitrum One, verified on Arbiscan, and open source at [github.com/lumio-it/jjskin-contracts](https://github.com/lumio-it/jjskin-contracts).
+
+## Deployed addresses
+
+| Contract | Address | Purpose |
+|----------|---------|---------|
+| **JJSKIN** | [`0x966F2BBF404B36d6E30f226838e772AfcbE6Dcf7`](https://arbiscan.io/address/0x966F2BBF404B36d6E30f226838e772AfcbE6Dcf7) | Escrow, listings, purchases, settlement |
+| **SteamAccountFactory** | [`0xF20d6e714cd03Dbc1f03A4c1117697cE60F55405`](https://arbiscan.io/address/0xF20d6e714cd03Dbc1f03A4c1117697cE60F55405) | Steam ID to smart wallet mapping |
+| **DcapAttestationVerifier** | [`0x4D455ceA16E65c7566105caDEAd68851625BD8a9`](https://arbiscan.io/address/0x4D455ceA16E65c7566105caDEAd68851625BD8a9) | TDX DCAP measurement storage |
+
+### External dependencies
+
+| Contract | Address |
+|----------|---------|
+| USDC (Arbitrum) | [`0xaf88d065e77c8cC2239327C5EDb3A432268e5831`](https://arbiscan.io/address/0xaf88d065e77c8cC2239327C5EDb3A432268e5831) |
+| EntryPoint (ERC-4337 v0.6) | [`0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789`](https://arbiscan.io/address/0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789) |
+
+## Key functions
+
+### `submitSettlement()`
+
+The core settlement function. Called by anyone with a valid oracle signature.
+
+```solidity
+function submitSettlement(
+    uint64 assetId,
+    uint48 tradeOfferId,
+    uint8 decision,        // 0 = Release, 1 = Refund
+    uint8 refundReason,    // RefundReason enum (0-16)
+    bytes calldata signature // EIP-712 oracle signature (65 bytes)
+) external nonReentrant
+```
+
+The contract:
+1. Recovers the signer from the EIP-712 signature
+2. Verifies `isOracle[signer] == true`
+3. Verifies the purchase is active and not already settled
+4. If Release: transfers USDC to seller (minus fee), marks as Released
+5. If Refund: transfers USDC to buyer, marks as Refunded
+
+### `createBuyOrder()`
+
+Buyer locks USDC in escrow for a listed skin.
+
+```solidity
+function createBuyOrder(
+    uint64 assetId,
+    bytes calldata listingSignature // Seller's EIP-712 listing signature
+) external nonReentrant
+```
+
+### `commitTradeOffer()`
+
+Seller commits the Steam trade offer ID after sending the trade.
+
+```solidity
+function commitTradeOffer(
+    uint64 assetId,
+    uint48 tradeOfferId
+) external
+```
+
+### `claimTimeoutRefund()`
+
+Buyer self-service refund when seller never commits a trade offer.
+
+```solidity
+function claimTimeoutRefund(uint64 assetId) external nonReentrant
+```
+
+Requires: `block.timestamp > purchaseTime + abandonedWindow` and `tradeOfferId == 0`.
+
+## RefundReason enum
+
+17 variants with fault attribution:
+
+| Value | Name | Meaning | Fault |
+|-------|------|---------|-------|
+| 0 | None | Not a refund (Release) | — |
+| 1 | Timeout | No commitment within window | Seller |
+| 2 | NotCS2Item | appId != 730 | Seller |
+| 3 | WrongAsset | Asset ID not in trade | Seller |
+| 4 | WrongParties | Wrong Steam IDs | Seller |
+| 5 | InvalidItems | Trade offer state 8 | — |
+| 6 | Canceled2FA | Mobile auth canceled | Seller |
+| 7 | BuyerExpired | Buyer didn't accept in time | Buyer |
+| 8 | SellerExpired | Seller didn't accept in time | Seller |
+| 9 | BuyerCanceled | Buyer canceled own offer | Buyer |
+| 10 | SellerCanceled | Seller canceled own offer | Seller |
+| 11 | BuyerDeclined | Buyer declined | Buyer |
+| 12 | SellerDeclined | Seller declined | Seller |
+| 13 | WrongRecipient | Wrong recipient | Seller |
+| 14 | TradeRollback | Status 12 rollback | — |
+| 15 | DeprecatedRollback | Deprecated states | — |
+| 16 | TradeNotExist | Trade doesn't exist on Steam | — |
+
+## Security features
+
+- **Ownable2Step** — Two-step ownership transfer prevents accidental transfers
+- **ReentrancyGuardTransient** — Transient storage reentrancy protection
+- **SafeERC20** — Safe token transfer wrappers
+- **Pausable** — Emergency pause capability
+- **EIP-712** — Typed data signing for both listings and oracle settlements
+
+## ERC-4337 smart wallets
+
+Users log in with Steam OAuth. The SteamAccountFactory deterministically derives a smart wallet address from:
+
+```
+keccak256(steamId, "JJSKIN_STEAM_WALLET_V2")
+```
+
+Gas is fully sponsored — users never need ETH or need to understand Arbitrum. The smart wallet is an ERC-4337 account that can hold USDC and interact with the JJSKIN contract via UserOperations.
