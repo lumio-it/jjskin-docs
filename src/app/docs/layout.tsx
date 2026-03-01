@@ -19,6 +19,7 @@ export default function Layout({ children }: { children: ReactNode }) {
         ),
         url: '/',
       }}
+      githubUrl="https://github.com/lumio-it"
       links={[
         {
           text: 'Docs',
