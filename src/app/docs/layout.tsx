@@ -10,26 +10,18 @@ export default function Layout({ children }: { children: ReactNode }) {
       nav={{
         title: (
           <Image
-            src="/logo/logo.png"
+            src="/logo/logo-full.svg"
             alt="JJSKIN"
             width={100}
-            height={52}
-            className="h-8 w-auto"
+            height={32}
+            className="h-7 w-auto"
+            unoptimized
           />
         ),
         url: '/',
       }}
       githubUrl="https://github.com/lumio-it"
       links={[
-        {
-          text: 'Docs',
-          url: '/docs',
-          active: 'nested-url',
-        },
-        {
-          text: 'Security',
-          url: '/docs/security',
-        },
         {
           text: 'Launch App',
           url: 'https://jjskin.com',
