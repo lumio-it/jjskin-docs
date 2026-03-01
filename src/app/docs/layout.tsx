@@ -32,7 +32,7 @@ export default function Layout({ children }: { children: ReactNode }) {
         },
         {
           text: 'Launch App',
-          url: 'https://app.jjskin.com',
+          url: 'https://jjskin.com',
           external: true,
         },
       ]}
